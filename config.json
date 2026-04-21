@@ -1,0 +1,6 @@
+{
+  "min_score": 100,
+  "limit": 30,
+  "output_file": "data.json",
+  "sources": ["hackernews"]
+}
