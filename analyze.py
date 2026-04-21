@@ -16,8 +16,13 @@ SECTION_WIDTH = 60
 def load_data(path: Path) -> list[dict]:
     if not path.exists():
         sys.exit(f"Error: {path} not found. Run scraper.py first.")
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        sys.exit(f"Error: {path} contains invalid JSON: {e}")
+    except OSError as e:
+        sys.exit(f"Error: could not read {path}: {e}")
     if not data:
         sys.exit(f"Error: {path} is empty.")
     return data
@@ -26,8 +31,11 @@ def load_data(path: Path) -> list[dict]:
 def load_prev_data(path: Path) -> list[dict] | None:
     if not path.exists():
         return None
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
     return data or None
 
 

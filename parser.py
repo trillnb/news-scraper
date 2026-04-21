@@ -11,9 +11,15 @@ def filter_by_score(articles: list[dict], threshold: int) -> list[dict]:
 def save_json(articles: list[dict], path: Path) -> None:
     if path.exists():
         backup = path.with_name(path.stem + "_prev" + path.suffix)
-        shutil.copy2(path, backup)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(articles, f, ensure_ascii=False, indent=2)
+        try:
+            shutil.copy2(path, backup)
+        except OSError as e:
+            print(f"Warning: could not create backup {backup}: {e}")
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(articles, f, ensure_ascii=False, indent=2)
+    except OSError as e:
+        raise SystemExit(f"Error: could not write {path}: {e}")
     print(f"Saved {len(articles)} articles to {path}")
 
 
@@ -21,10 +27,13 @@ def save_csv(articles: list[dict], path: Path) -> None:
     if not articles:
         return
     fieldnames = ["title", "link", "score", "comments", "author", "posted_at"]
-    with open(path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames, restval="")
-        writer.writeheader()
-        writer.writerows(articles)
+    try:
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, restval="")
+            writer.writeheader()
+            writer.writerows(articles)
+    except OSError as e:
+        raise SystemExit(f"Error: could not write {path}: {e}")
     print(f"Saved {len(articles)} articles to {path}")
 
 

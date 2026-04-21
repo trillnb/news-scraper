@@ -11,10 +11,15 @@ CONFIG_FILE = Path("config.json")
 
 
 def load_config() -> dict:
-    if CONFIG_FILE.exists():
+    if not CONFIG_FILE.exists():
+        return {}
+    try:
         with open(CONFIG_FILE, encoding="utf-8") as f:
             return json.load(f)
-    return {}
+    except json.JSONDecodeError as e:
+        raise SystemExit(f"Error: config.json is not valid JSON: {e}")
+    except OSError as e:
+        raise SystemExit(f"Error: could not read config.json: {e}")
 
 
 def _positive_int(value: str) -> int:
