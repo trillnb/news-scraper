@@ -1,6 +1,7 @@
 import argparse
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -33,6 +34,101 @@ def cmd_watch(args: argparse.Namespace) -> None:
     from scheduler import watch
     cfg = _load_config()
     watch(interval_minutes=args.interval, config=cfg)
+
+
+def cmd_report(args: argparse.Namespace) -> None:
+    input_path = Path(args.input)
+    if not input_path.exists():
+        print(f"Error: input file '{input_path}' not found.", file=sys.stderr)
+        sys.exit(1)
+
+    articles = json.loads(input_path.read_text(encoding="utf-8"))
+    if not isinstance(articles, list):
+        print("Error: input JSON must be a list of articles.", file=sys.stderr)
+        sys.exit(1)
+
+    fmt = args.format.lower()
+    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    if fmt == "md":
+        output_path = Path(args.output) if args.output else Path("report.md")
+        lines = [
+            f"# News Digest",
+            f"",
+            f"_Generated: {generated_at} — {len(articles)} articles_",
+            f"",
+        ]
+        for i, a in enumerate(articles, 1):
+            title     = a.get("title", "Untitled")
+            link      = a.get("link", "")
+            score     = a.get("score", "—")
+            author    = a.get("author", "unknown")
+            posted_at = a.get("posted_at", "")[:19]  # trim unix suffix
+            comments  = a.get("comments", 0)
+            lines += [
+                f"## {i}. [{title}]({link})",
+                f"",
+                f"- **Score:** {score} | **Author:** {author} | **Comments:** {comments}",
+                f"- **Posted:** {posted_at}",
+                f"",
+            ]
+        output_path.write_text("\n".join(lines), encoding="utf-8")
+
+    elif fmt == "html":
+        output_path = Path(args.output) if args.output else Path("report.html")
+        rows = ""
+        for i, a in enumerate(articles, 1):
+            title     = a.get("title", "Untitled").replace("<", "&lt;").replace(">", "&gt;")
+            link      = a.get("link", "#")
+            score     = a.get("score", "—")
+            author    = a.get("author", "unknown").replace("<", "&lt;")
+            posted_at = a.get("posted_at", "")[:19]
+            comments  = a.get("comments", 0)
+            rows += (
+                f"<tr>"
+                f"<td>{i}</td>"
+                f"<td><a href=\"{link}\">{title}</a></td>"
+                f"<td>{score}</td>"
+                f"<td>{author}</td>"
+                f"<td>{comments}</td>"
+                f"<td>{posted_at}</td>"
+                f"</tr>\n"
+            )
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>News Digest</title>
+<style>
+  body{{font-family:system-ui,sans-serif;max-width:960px;margin:2rem auto;padding:0 1rem;color:#222}}
+  h1{{font-size:1.6rem;margin-bottom:.25rem}}
+  .meta{{color:#666;font-size:.875rem;margin-bottom:1.5rem}}
+  table{{width:100%;border-collapse:collapse;font-size:.9rem}}
+  th{{background:#f0f0f0;text-align:left;padding:.5rem .75rem;border-bottom:2px solid #ccc}}
+  td{{padding:.45rem .75rem;border-bottom:1px solid #e0e0e0;vertical-align:top}}
+  tr:hover td{{background:#fafafa}}
+  a{{color:#1a6fc4;text-decoration:none}}
+  a:hover{{text-decoration:underline}}
+</style>
+</head>
+<body>
+<h1>News Digest</h1>
+<p class="meta">Generated: {generated_at} &mdash; {len(articles)} articles</p>
+<table>
+<thead><tr><th>#</th><th>Title</th><th>Score</th><th>Author</th><th>Comments</th><th>Posted</th></tr></thead>
+<tbody>
+{rows}</tbody>
+</table>
+</body>
+</html>"""
+        output_path.write_text(html, encoding="utf-8")
+
+    else:
+        print(f"Error: unknown format '{fmt}'. Use 'md' or 'html'.", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Report saved to {output_path.resolve()}")
 
 
 def cmd_config(_args: argparse.Namespace) -> None:
@@ -84,6 +180,15 @@ def build_parser() -> argparse.ArgumentParser:
     # config
     sub.add_parser("config", help="Show current configuration")
 
+    # report
+    p_report = sub.add_parser("report", help="Export articles to Markdown or HTML")
+    p_report.add_argument("--format", choices=["md", "html"], default="md", metavar="FMT",
+                          help="Output format: md (default) or html")
+    p_report.add_argument("--input", default="data.json", metavar="FILE",
+                          help="Source JSON file (default: data.json)")
+    p_report.add_argument("--output", default=None, metavar="FILE",
+                          help="Destination file (default: report.md / report.html)")
+
     return parser
 
 
@@ -96,6 +201,7 @@ def main() -> None:
         "analyze": cmd_analyze,
         "watch":   cmd_watch,
         "config":  cmd_config,
+        "report":  cmd_report,
     }
     dispatch[args.command](args)
 
